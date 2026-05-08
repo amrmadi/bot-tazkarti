@@ -1,0 +1,8 @@
+user_data.json
+booking_data/
+owner_chat_id.txt
+*.log
+__pycache__/
+*.pyc
+.venv/
+venv/

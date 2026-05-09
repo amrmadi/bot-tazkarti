@@ -3,8 +3,10 @@ import json
 import os
 import logging
 import sys
+import threading
 from datetime import datetime
 from typing import Optional
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
@@ -563,8 +565,23 @@ def main():
     job_queue = app.job_queue
     job_queue.run_repeating(check_new_matches, interval=300, first=10)
 
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), HealthHandler)
+    t = threading.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+    logger.info(f"Health server running on port {port}")
+
     logger.info("Bot started!")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
+
+
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
+    def log_message(self, format, *args):
+        return
 
 
 if __name__ == "__main__":

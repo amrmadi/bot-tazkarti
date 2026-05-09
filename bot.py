@@ -22,7 +22,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = "8123254144:AAFbCADZT3gl213b-9PrQMEyalSyj1tgqyA"
+BOT_TOKEN = "8123254144:AAHaOhXY9mDVHCIWGaBZou14_feZPxzO9K4"
 OWNER_USERNAME = "amrmadiii"
 OWNER_CHAT_ID_FILE = os.path.join(os.path.dirname(__file__), "owner_chat_id.txt")
 DATA_FILE = os.path.join(os.path.dirname(__file__), "user_data.json")

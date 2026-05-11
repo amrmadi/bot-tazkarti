@@ -1,111 +1,147 @@
+```python
 import requests
-import json
-import time
-from typing import Optional, List, Dict
+import logging
 
-BASE_URL = "https://tazkarti.com"
+logger = logging.getLogger(__name__)
+
+BASE_URL = "https://api.tazkarti.com/api"
+
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    "Accept": "application/json, text/plain, */*",
-    "Referer": "https://tazkarti.com/",
-    "Accept-Language": "en-US,en;q=0.9,ar;q=0.8",
-}
-
-EPL_TEAM_IDS = {
-    77, 79, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180,
-    181, 182, 183, 184, 185, 186, 223, 224, 290, 291, 310,
+    "User-Agent": "Mozilla/5.0",
+    "Accept": "application/json",
 }
 
 
-def get_epl_teams() -> List[Dict]:
-    all_teams = get_teams()
-    return [t for t in all_teams if t["id"] in EPL_TEAM_IDS and t.get("teamStatus") == 1 and not t.get("isDeleted")]
+# ===== قراءة JSON بشكل آمن =====
+def safe_json(response):
+    try:
+        return response.json()
+
+    except Exception as e:
+
+        logger.error(f"JSON Decode Error: {e}")
+
+        try:
+            logger.error(f"Response Text: {response.text[:500]}")
+        except:
+            pass
+
+        return []
 
 
+# ===== جلب المباريات =====
 def get_matches():
-    r = requests.get(
-        f"{BASE_URL}/data/matches-list-json.json",
-        headers=HEADERS,
-        timeout=15,
-    )
-    content = r.content.decode("utf-8-sig")
-    return json.loads(content)
 
-
-def get_teams():
-    r = requests.get(
-        f"{BASE_URL}/booksprt/teams/getTeams",
-        headers=HEADERS,
-        timeout=15,
-    )
-    return r.json()
-
-
-def get_stadiums():
-    r = requests.get(
-        f"{BASE_URL}/booksprt/stadiums/getStadiums",
-        headers=HEADERS,
-        timeout=15,
-    )
-    return r.json()
-
-
-def get_rounds():
-    r = requests.get(
-        f"{BASE_URL}/booksprt/rounds/getRounds",
-        headers=HEADERS,
-        timeout=15,
-    )
-    return r.json()
-
-
-def get_team_groups():
-    r = requests.get(
-        f"{BASE_URL}/booksprt/teamGroups/getTeamGroups",
-        headers=HEADERS,
-        timeout=15,
-    )
-    return r.json()
-
-
-def get_matches_for_team(team_id: int):
-    matches = get_matches()
-    return [
-        m
-        for m in matches
-        if m.get("teamId1") == team_id or m.get("teamId2") == team_id
-    ]
-
-
-def _get_ticket_price_url(match_id: int) -> str:
-    return f"{BASE_URL}/data/TicketPrice-AvailableSeats-{match_id}.json?_{int(time.time() * 1000)}"
-
-
-def get_ticket_prices(match_id: int) -> Optional[dict]:
     try:
-        r = requests.get(
-            _get_ticket_price_url(match_id),
+
+        url = f"{BASE_URL}/matches"
+
+        response = requests.get(
+            url,
             headers=HEADERS,
-            timeout=15,
+            timeout=20,
         )
-        if r.status_code == 200:
-            content = r.content.decode("utf-8-sig")
-            return json.loads(content)
-    except Exception:
-        pass
-    return None
+
+        logger.info(f"Matches Status Code: {response.status_code}")
+
+        if response.status_code != 200:
+            return []
+
+        data = safe_json(response)
+
+        # لو object
+        if isinstance(data, dict):
+
+            if "data" in data:
+                return data["data"]
+
+            if "matches" in data:
+                return data["matches"]
+
+            return []
+
+        # لو list
+        if isinstance(data, list):
+            return data
+
+        return []
+
+    except Exception as e:
+
+        logger.error(f"get_matches Error: {e}")
+
+        return []
 
 
-def get_fan_queues(match_id: int) -> Optional[dict]:
+# ===== جلب الفرق =====
+def get_epl_teams():
+
     try:
-        r = requests.get(
-            f"{BASE_URL}/data/fanQueuesMatch-list-json.json?_{int(time.time() * 1000)}",
+
+        url = f"{BASE_URL}/teams"
+
+        response = requests.get(
+            url,
             headers=HEADERS,
-            timeout=15,
+            timeout=20,
         )
-        if r.status_code == 200:
-            content = r.content.decode("utf-8-sig")
-            return json.loads(content)
-    except Exception:
-        pass
-    return None
+
+        logger.info(f"Teams Status Code: {response.status_code}")
+
+        if response.status_code != 200:
+            return []
+
+        data = safe_json(response)
+
+        # لو object
+        if isinstance(data, dict):
+
+            if "data" in data:
+                return data["data"]
+
+            if "teams" in data:
+                return data["teams"]
+
+            return []
+
+        # لو list
+        if isinstance(data, list):
+            return data
+
+        return []
+
+    except Exception as e:
+
+        logger.error(f"get_epl_teams Error: {e}")
+
+        return []
+
+
+# ===== مباريات فريق =====
+def get_matches_for_team(team_id):
+
+    try:
+
+        matches = get_matches()
+
+        if not matches:
+            return []
+
+        filtered_matches = []
+
+        for match in matches:
+
+            team1 = match.get("teamId1")
+            team2 = match.get("teamId2")
+
+            if team1 == team_id or team2 == team_id:
+                filtered_matches.append(match)
+
+        return filtered_matches
+
+    except Exception as e:
+
+        logger.error(f"get_matches_for_team Error: {e}")
+
+        return []
+```

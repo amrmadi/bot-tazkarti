@@ -14,34 +14,36 @@ if sys.platform == "win32":
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
-
 import tazkarti_api as tazkarti
 
+# ===== إعداد اللوجنج =====
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = "8123254144:AAHaOhXY9mDVHCIWGaBZou14_feZPxzO9K4"
+# ===== الإعدادات الأساسية =====
+BOT_TOKEN = "8123254144:AAFbCADZT3gl213b-9PrQMEyalSyj1tgqyA"
 OWNER_USERNAME = "amrmadiii"
+SUPPORT_USERNAME = "@amrmadiii"
+GROUP_LINK = "https://t.me/tazkartiii"
+
 OWNER_CHAT_ID_FILE = os.path.join(os.path.dirname(__file__), "owner_chat_id.txt")
 DATA_FILE = os.path.join(os.path.dirname(__file__), "user_data.json")
 BOOKING_DATA_DIR = os.path.join(os.path.dirname(__file__), "booking_data")
 
 user_data_store = {}
 
-
+# ===== تحميل وحفظ البيانات =====
 def load_data():
     global user_data_store
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             user_data_store = json.load(f)
 
-
 def save_data():
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(user_data_store, f, ensure_ascii=False, indent=2)
-
 
 def get_owner_chat_id():
     if os.path.exists(OWNER_CHAT_ID_FILE):
@@ -49,11 +51,9 @@ def get_owner_chat_id():
             return f.read().strip()
     return None
 
-
 def set_owner_chat_id(cid):
     with open(OWNER_CHAT_ID_FILE, "w") as f:
         f.write(str(cid))
-
 
 def save_booking_to_file(user_id, username, first_name, last_name, phone, fan_id, password):
     os.makedirs(BOOKING_DATA_DIR, exist_ok=True)
@@ -72,9 +72,8 @@ def save_booking_to_file(user_id, username, first_name, last_name, phone, fan_id
     )
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(content)
-    logger.info(f"Booking data saved: {filepath}")
+    logger.info(f"تم حفظ بيانات الحجز: {filepath}")
     return filepath
-
 
 def get_user(user_id):
     uid = str(user_id)
@@ -89,7 +88,7 @@ def get_user(user_id):
         }
     return user_data_store[uid]
 
-
+# ===== القائمة الرئيسية (مع إضافة الدعم الفني والجروب) =====
 def main_menu():
     keyboard = [
         [InlineKeyboardButton("📅 المباريات المتاحة", callback_data="matches")],
@@ -97,10 +96,12 @@ def main_menu():
         [InlineKeyboardButton("⭐ فريقي المفضل", callback_data="my_favorite")],
         [InlineKeyboardButton("🎫 حجز تذكرة", callback_data="book_ticket")],
         [InlineKeyboardButton("📋 بياناتي", callback_data="my_data")],
+        [InlineKeyboardButton("🛠️ الدعم الفني", callback_data="support")],
+        [InlineKeyboardButton("👥 جروبنا", url=GROUP_LINK)],
     ]
     return InlineKeyboardMarkup(keyboard)
 
-
+# ===== أمر /start =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     get_user(user.id)
@@ -108,7 +109,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if user.username and user.username.lower() == OWNER_USERNAME:
         set_owner_chat_id(user.id)
-        logger.info(f"Owner chat ID saved: {user.id}")
+        logger.info(f"تم حفظ معرف المالك: {user.id}")
 
     await update.message.reply_text(
         f"مرحباً {user.first_name}!\n"
@@ -117,7 +118,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=main_menu(),
     )
 
-
+# ===== معالج الأزرار =====
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -145,10 +146,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_my_data(query, context)
     elif data == "cancel_booking":
         await cancel_booking(query, context)
+    elif data == "support":
+        await show_support(query, context)
     elif data == "back_main":
         await query.edit_message_text("القائمة الرئيسية:", reply_markup=main_menu())
 
-
+# ===== عرض المباريات =====
 async def show_matches(query, context):
     try:
         matches = tazkarti.get_matches()
@@ -180,7 +183,7 @@ async def show_matches(query, context):
     keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="back_main")]]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-
+# ===== عرض الفرق =====
 async def show_teams(query, context, page=0, search_text=None):
     try:
         teams = tazkarti.get_epl_teams()
@@ -219,16 +222,16 @@ async def show_teams(query, context, page=0, search_text=None):
 
     nav_row = []
     if page > 0:
-        nav_row.append(InlineKeyboardButton("السابق", callback_data=f"teams_page_{page - 1}"))
+        nav_row.append(InlineKeyboardButton("السابق ◀️", callback_data=f"teams_page_{page - 1}"))
     if page < total_pages - 1:
-        nav_row.append(InlineKeyboardButton("التالي", callback_data=f"teams_page_{page + 1}"))
+        nav_row.append(InlineKeyboardButton("▶️ التالي", callback_data=f"teams_page_{page + 1}"))
     if nav_row:
         keyboard.append(nav_row)
-    keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="back_main")])
 
+    keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="back_main")])
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-
+# ===== تفاصيل الفريق =====
 async def show_team_detail(query, context, team_id):
     try:
         teams = tazkarti.get_epl_teams()
@@ -254,6 +257,7 @@ async def show_team_detail(query, context, team_id):
 
     text = f"🏟️ الفريق: {name}\n"
     text += f"المباريات القادمة: {len(matches)}\n\n"
+
     if matches:
         text += "المباريات:\n"
         for m in matches:
@@ -274,7 +278,7 @@ async def show_team_detail(query, context, team_id):
 
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-
+# ===== فريقي المفضل =====
 async def my_favorite_menu(query, context):
     uid = str(query.from_user.id)
     user = get_user(uid)
@@ -283,8 +287,10 @@ async def my_favorite_menu(query, context):
     if not fav_id:
         text = "لم تختر فريقاً مفضلاً بعد.\n"
         text += "اذهب إلى قائمة الفرق واختر فريقك المفضل."
-        keyboard = [[InlineKeyboardButton("🏟️ الفرق", callback_data="teams_page_0")],
-                    [InlineKeyboardButton("🔙 رجوع", callback_data="back_main")]]
+        keyboard = [
+            [InlineKeyboardButton("🏟️ الفرق", callback_data="teams_page_0")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="back_main")],
+        ]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
         return
 
@@ -321,10 +327,11 @@ async def my_favorite_menu(query, context):
     ]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-
+# ===== تعيين فريق مفضل =====
 async def set_favorite(query, context, team_id):
     uid = str(query.from_user.id)
     user = get_user(uid)
+
     try:
         teams = tazkarti.get_epl_teams()
         team_name = str(team_id)
@@ -352,23 +359,22 @@ async def set_favorite(query, context, team_id):
         try:
             await context.bot.send_message(chat_id=int(owner_cid), text=msg, parse_mode="HTML")
         except Exception as e:
-            logger.warning(f"Could not notify owner: {e}")
+            logger.warning(f"تعذر إرسال إشعار للمالك: {e}")
 
     await query.answer(f"✅ تم حفظ {team_name} كفريقك المفضل!")
     await show_team_detail(query, context, team_id)
 
-
+# ===== إزالة فريق مفضل =====
 async def remove_favorite(query, context, team_id):
     uid = str(query.from_user.id)
     user = get_user(uid)
     user["favorite_team_id"] = None
     user["favorite_team_name"] = None
     save_data()
-
     await query.answer("❌ تم إزالة الفريق من المفضلة!")
     await show_team_detail(query, context, team_id)
 
-
+# ===== بدء الحجز =====
 async def book_ticket_start(query, context):
     uid = str(query.from_user.id)
     user = get_user(uid)
@@ -386,7 +392,6 @@ async def book_ticket_start(query, context):
         "<code>mypassword</code>\n\n"
         "سيتم حفظ بياناتك بشكل آمن."
     )
-
     keyboard = [[InlineKeyboardButton("إلغاء", callback_data="cancel_booking")]]
     await query.edit_message_text(
         text,
@@ -394,7 +399,7 @@ async def book_ticket_start(query, context):
         parse_mode="HTML",
     )
 
-
+# ===== استقبال بيانات الحجز =====
 async def handle_booking_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     uid = str(user.id)
@@ -455,21 +460,21 @@ async def handle_booking_data(update: Update, context: ContextTypes.DEFAULT_TYPE
             try:
                 await context.bot.send_message(chat_id=int(owner_cid), text=msg, parse_mode="HTML")
             except Exception as e:
-                logger.warning(f"Could not notify owner: {e}")
+                logger.warning(f"تعذر إرسال إشعار للمالك: {e}")
 
         await update.message.reply_text(
             "✅ تم حفظ البيانات بنجاح! سيتم التواصل معك في أقرب وقت.",
             reply_markup=main_menu(),
         )
     except Exception as e:
-        logger.error(f"Failed to save booking data: {e}")
+        logger.error(f"فشل حفظ بيانات الحجز: {e}")
         await update.message.reply_text(
             "❌ حدث خطأ أثناء حفظ البيانات. حاول مرة أخرى لاحقاً.",
             reply_markup=main_menu(),
         )
     return True
 
-
+# ===== إلغاء الحجز =====
 async def cancel_booking(query, context):
     uid = str(query.from_user.id)
     user = get_user(uid)
@@ -477,7 +482,7 @@ async def cancel_booking(query, context):
     save_data()
     await query.edit_message_text("تم الإلغاء.", reply_markup=main_menu())
 
-
+# ===== بياناتي =====
 async def show_my_data(query, context):
     uid = str(query.from_user.id)
     user = get_user(uid)
@@ -493,7 +498,27 @@ async def show_my_data(query, context):
     keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="back_main")]]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
+# ===== الدعم الفني (جديد) =====
+async def show_support(query, context):
+    text = (
+        "🛠️ <b>الدعم الفني</b>\n\n"
+        "لو عندك أي مشكلة أو استفسار، تواصل معنا مباشرة:\n\n"
+        f"👤 <b>المسؤول:</b> {SUPPORT_USERNAME}\n"
+        f"👥 <b>الجروب:</b> @tazkartiii\n\n"
+        "هنرد عليك في أقرب وقت! ✅"
+    )
+    keyboard = [
+        [InlineKeyboardButton("💬 تواصل مع الدعم", url=f"https://t.me/amrmadiii")],
+        [InlineKeyboardButton("👥 انضم للجروب", url=GROUP_LINK)],
+        [InlineKeyboardButton("🔙 رجوع", callback_data="back_main")],
+    ]
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML",
+    )
 
+# ===== التحقق من مباريات جديدة وإرسال إشعارات =====
 async def check_new_matches(context: ContextTypes.DEFAULT_TYPE):
     try:
         matches = tazkarti.get_matches()
@@ -527,12 +552,9 @@ async def check_new_matches(context: ContextTypes.DEFAULT_TYPE):
             save_data()
 
             try:
-                await context.bot.send_message(
-                    chat_id=int(uid),
-                    text=text,
-                )
+                await context.bot.send_message(chat_id=int(uid), text=text)
             except Exception as e:
-                logger.warning(f"Could not notify user {uid}: {e}")
+                logger.warning(f"تعذر إرسال إشعار للمستخدم {uid}: {e}")
 
             owner_cid = get_owner_chat_id()
             if owner_cid:
@@ -545,15 +567,25 @@ async def check_new_matches(context: ContextTypes.DEFAULT_TYPE):
                 try:
                     await context.bot.send_message(chat_id=int(owner_cid), text=owner_msg, parse_mode="HTML")
                 except Exception as e:
-                    logger.warning(f"Could not notify owner: {e}")
+                    logger.warning(f"تعذر إرسال إشعار للمالك: {e}")
 
-
+# ===== معالج الرسائل النصية =====
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     handled = await handle_booking_data(update, context)
     if not handled:
         await update.message.reply_text("استخدم /start للقائمة الرئيسية.")
 
+# ===== Health Check Handler =====
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
 
+    def log_message(self, format, *args):
+        return
+
+# ===== الدالة الرئيسية =====
 def main():
     load_data()
     app = Application.builder().token(BOT_TOKEN).build()
@@ -570,19 +602,9 @@ def main():
     t = threading.Thread(target=server.serve_forever, daemon=True)
     t.start()
     logger.info(f"Health server running on port {port}")
+    logger.info("البوت شغال!")
 
-    logger.info("Bot started!")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
-
-
-class HealthHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"OK")
-    def log_message(self, format, *args):
-        return
-
 
 if __name__ == "__main__":
     main()

@@ -4,7 +4,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.tazkarti.com/api"
-
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     "Accept": "application/json",
@@ -30,40 +29,53 @@ def get_matches():
         url = f"{BASE_URL}/matches"
         response = requests.get(url, headers=HEADERS, timeout=20)
         logger.info(f"Matches Status Code: {response.status_code}")
-
         if response.status_code != 200:
             logger.error(f"Matches endpoint returned: {response.status_code}")
             return []
-
         data = safe_json(response)
-
         if isinstance(data, dict):
             if "data" in data:
                 return data["data"]
             if "matches" in data:
                 return data["matches"]
             return []
-
         if isinstance(data, list):
             return data
-
         return []
     except Exception as e:
         logger.error(f"get_matches Error: {e}")
         return []
 
-# ===== جلب الفرق من المباريات (بدل endpoint منفصل) =====
+# ===== جلب الفرق =====
 def get_epl_teams():
     try:
+        # جرب endpoints مختلفة للفرق
+        for endpoint in ["/teams", "/epl/teams", "/football/teams", "/clubs"]:
+            try:
+                url = f"{BASE_URL}{endpoint}"
+                response = requests.get(url, headers=HEADERS, timeout=10)
+                if response.status_code == 200:
+                    data = safe_json(response)
+                    if isinstance(data, list) and len(data) > 0:
+                        logger.info(f"Got {len(data)} teams from {endpoint}")
+                        return data
+                    if isinstance(data, dict):
+                        for key in ["data", "teams", "clubs", "results"]:
+                            if key in data and isinstance(data[key], list) and len(data[key]) > 0:
+                                logger.info(f"Got {len(data[key])} teams from {endpoint} -> {key}")
+                                return data[key]
+            except Exception as e:
+                logger.warning(f"Endpoint {endpoint} failed: {e}")
+                continue
+
+        # fallback: استخرج الفرق من المباريات
         matches = get_matches()
         if not matches:
             logger.warning("No matches returned, cannot extract teams")
             return []
 
         teams_dict = {}
-
         for m in matches:
-            # الفريق الأول
             t1_id = m.get("teamId1")
             if t1_id and t1_id not in teams_dict:
                 teams_dict[t1_id] = {
@@ -71,8 +83,6 @@ def get_epl_teams():
                     "name": m.get("teamName1", ""),
                     "nameAr": m.get("teamNameAr1") or m.get("teamName1", ""),
                 }
-
-            # الفريق الثاني
             t2_id = m.get("teamId2")
             if t2_id and t2_id not in teams_dict:
                 teams_dict[t2_id] = {
@@ -98,7 +108,6 @@ def get_matches_for_team(team_id):
         matches = get_matches()
         if not matches:
             return []
-
         return [
             m for m in matches
             if m.get("teamId1") == team_id or m.get("teamId2") == team_id
